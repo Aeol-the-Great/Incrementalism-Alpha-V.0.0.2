@@ -1,7 +1,7 @@
 import React from 'react';
 import HexNode from './HexNode';
 
-const HexGrid = ({ nodes, size, onNodeClick, selectedNodeKey, targetableKeys }) => {
+const HexGrid = ({ nodes, size, onNodeClick, onNodeEnter, onNodeLeave, selectedNodeKeys, targetableKeys }) => {
   return (
     <g className="grid-layer">
       <defs>
@@ -26,9 +26,11 @@ const HexGrid = ({ nodes, size, onNodeClick, selectedNodeKey, targetableKeys }) 
             key={key} 
             node={node} 
             size={size} 
-            isSelected={selectedNodeKey === key}
+            isSelected={selectedNodeKeys.includes(key)}
             isTargetable={targetableKeys.includes(key)}
             onClick={onNodeClick}
+            onMouseEnter={onNodeEnter}
+            onMouseLeave={onNodeLeave}
           />
         );
       })}

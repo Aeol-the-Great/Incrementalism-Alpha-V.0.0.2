@@ -11,7 +11,8 @@ import {
   COSTS, 
   MAX_HP, 
   GAME_CONSTANTS,
-  STRIKES
+  STRIKES,
+  CONSTRUCTION_TIMES_MS
 } from '../utils/constants';
 
 export function useGameEngine() {
@@ -19,12 +20,17 @@ export function useGameEngine() {
   const nodesRef = useRef(nodes);
   const [bits, setBits] = useState(100);
   const [bps, setBps] = useState(0);
+  const [inventory, setInventory] = useState({
+    STANDARD: 0, INCENDIARY: 0, COBALT: 0, EMP: 0, ICBM: 0, HARPOON: 0, FOR_AMERICA: 0
+  });
 
   // Sync ref to state
   useEffect(() => { nodesRef.current = nodes; }, [nodes]);
 
   // High-frequency volatile state kept in refs to avoid mass re-rendering
   const activeExpansionsRef = useRef({}); 
+  const activeConstructionRef = useRef({});
+  const ammoQueueRef = useRef([]);
   const strikesRef = useRef([]);
 
   // Game Loop
@@ -39,6 +45,7 @@ export function useGameEngine() {
 
       let nodesChanged = false;
       const nextNodes = { ...nodesRef.current };
+      let newInventoryAdds = {};
 
       // 1. Process Active Expansions
       for (const targetKey in activeExpansionsRef.current) {
@@ -80,6 +87,45 @@ export function useGameEngine() {
           
           delete activeExpansionsRef.current[targetKey];
         }
+      }
+
+      // 1b. Process Nodes Under Construction
+      for (const key in activeConstructionRef.current) {
+         const build = activeConstructionRef.current[key];
+         build.progress += dt / build.totalTime;
+         if (build.progress >= 1) {
+             nextNodes[key] = {
+                ...nextNodes[key],
+                state: build.type,
+                hp: MAX_HP[build.type] || nextNodes[key].hp,
+                maxHp: MAX_HP[build.type] || nextNodes[key].maxHp
+             };
+             delete activeConstructionRef.current[key];
+             nodesChanged = true;
+         }
+      }
+
+      // 1c. Process Ammo Production
+      let offensiveCount = 0;
+      for (const k in nextNodes) {
+         if (nextNodes[k].owner === NODE_OWNERS.PLAYER && nextNodes[k].state === NODE_STATES.OFFENSIVE) {
+            const isBlackedOut = nextNodes[k].statusEffects.some(e => e.type === 'blackout');
+            if (!isBlackedOut) offensiveCount++;
+         }
+      }
+
+      let activeBuilders = 0;
+      for (let i = 0; i < ammoQueueRef.current.length; i++) {
+         if (activeBuilders >= offensiveCount) break; // Throttle to factory count
+         const item = ammoQueueRef.current[i];
+         item.progress += dt / item.totalTime;
+         if (item.progress >= 1) {
+            const t = item.type;
+            setInventory(prev => ({ ...prev, [t]: (prev[t] || 0) + 1 }));
+            ammoQueueRef.current.splice(i, 1);
+            i--; // adjust loop index after splice
+         }
+         activeBuilders++;
       }
 
       // 2. Process Strikes hitting
@@ -204,6 +250,13 @@ export function useGameEngine() {
 
          setBps(currentBps);
          setBits(b => b + currentBps);
+         if (Object.keys(newInventoryAdds).length > 0) {
+           setInventory(prev => {
+             const next = { ...prev };
+             for (const k in newInventoryAdds) next[k] += newInventoryAdds[k];
+             return next;
+           });
+         }
          tickAccumulator -= 1000;
       }
 
@@ -275,13 +328,19 @@ export function useGameEngine() {
     if (newState === NODE_STATES.ADVANCE) cost = COSTS.UPGRADE_ADVANCE;
 
     const executeConvert = () => {
+         const buildTime = CONSTRUCTION_TIMES_MS[newState] || 1000;
+         activeConstructionRef.current[key] = {
+            target: key,
+            type: newState,
+            progress: 0,
+            totalTime: buildTime
+         };
+         
          setNodes(prev => ({
            ...prev,
            [key]: {
              ...prev[key],
-             state: newState,
-             hp: MAX_HP[newState],
-             maxHp: MAX_HP[newState]
+             state: NODE_STATES.UNDER_CONSTRUCTION
            }
          }));
     };
@@ -307,39 +366,86 @@ export function useGameEngine() {
     const flightTime = Math.max(500, dist * 100); 
 
     const executeStrike = () => {
-         strikesRef.current.push({
-           id: Math.random().toString(),
-           type,
-           owner: nodesRef.current[sKey]?.owner || NODE_OWNERS.PLAYER,
-           source: sKey,
-           target: tKey,
-           progress: 0,
-           flightTime
-         });
+         if (type === 'FOR_AMERICA') {
+            const affected = getNodesInRange(targetQ, targetR, sData.radius);
+            affected.forEach(pos => {
+               const nk = `${pos.q},${pos.r}`;
+               if (nodesRef.current[nk] && nodesRef.current[nk].state !== NODE_STATES.EMPTY) {
+                  const distToNode = distance(sourceQ, sourceR, pos.q, pos.r);
+                  strikesRef.current.push({
+                     id: Math.random().toString(),
+                     type: 'STANDARD', 
+                     owner: nodesRef.current[sKey]?.owner || NODE_OWNERS.PLAYER,
+                     source: sKey,
+                     target: nk,
+                     progress: 0,
+                     flightTime: Math.max(500, distToNode * 100) * (0.5 + Math.random() * 1.5) // Fanned-out barrage stagger
+                  });
+               }
+            });
+         } else {
+             strikesRef.current.push({
+               id: Math.random().toString(),
+               type,
+               owner: nodesRef.current[sKey]?.owner || NODE_OWNERS.PLAYER,
+               source: sKey,
+               target: tKey,
+               progress: 0,
+               flightTime
+             });
+         }
     };
 
     if (isAI) {
        executeStrike();
     } else {
-      setBits(b => {
+       if (type === 'FOR_AMERICA') {
+           setBits(b => {
+             if (b >= STRIKES[type].cost) { executeStrike(); return b - STRIKES[type].cost; }
+             return b;
+           });
+       } else {
+           setInventory(inv => {
+             if (inv[type] > 0) {
+               executeStrike();
+               return { ...inv, [type]: inv[type] - 1 };
+             }
+             return inv;
+           });
+       }
+    }
+  }, []);
+
+  const produceMissile = useCallback((type) => {
+     const sData = STRIKES[type];
+     if (!sData) return;
+     setBits(b => {
         if (b >= sData.cost) {
-           executeStrike();
+           ammoQueueRef.current.push({
+             id: Math.random().toString(),
+             type,
+             progress: 0,
+             totalTime: sData.prodTime
+           });
            return b - sData.cost;
         }
         return b;
-      });
-    }
+     });
   }, []);
 
   return {
     nodes,
     bits,
     bps,
+    inventory,
     activeExpansionsRef,
+    activeConstructionRef,
+    ammoQueueRef,
     strikesRef,
     startExpansion,
     convertNode,
     launchStrike,
+    produceMissile,
     // Provide a way to manually force a bit change for enemy AI or testing
     modifyBits: (amt) => setBits(b => Math.max(0, b + amt))
   };

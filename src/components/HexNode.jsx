@@ -4,7 +4,7 @@ import { hexToPixel } from '../utils/hexUtils';
 
 const HEX_POINTS = "0,-1 0.866,-0.5 0.866,0.5 0,1 -0.866,0.5 -0.866,-0.5";
 
-const HexNode = ({ node, size, isSelected, isTargetable, onClick }) => {
+const HexNode = ({ node, size, isSelected, isTargetable, onClick, onMouseEnter, onMouseLeave }) => {
   const { q, r, state, owner, hp, maxHp, statusEffects } = node;
   const { x, y } = hexToPixel(q, r, size);
 
@@ -41,46 +41,67 @@ const HexNode = ({ node, size, isSelected, isTargetable, onClick }) => {
     }
   };
 
+  const isBuilding = state === NODE_STATES.UNDER_CONSTRUCTION;
+
   // Status effects
   const isHot = statusEffects.some(e => e.type === 'radioactive');
   const isBlackout = statusEffects.some(e => e.type === 'blackout');
   const isFire = statusEffects.some(e => e.type === 'fire');
 
   return (
-    <g transform={`translate(${x}, ${y})`} style={{ cursor: 'pointer' }} onClick={() => onClick(node)}>
+    <g 
+      transform={`translate(${x}, ${y})`} 
+      style={{ cursor: 'pointer' }} 
+      onClick={() => onClick(node)}
+      onPointerEnter={() => onMouseEnter?.(node)}
+      onPointerLeave={() => onMouseLeave?.(node)}
+    >
       {/* Invisible clickable layer */}
-      <polygon points={HEX_POINTS} transform={`scale(${size})`} fill="transparent" pointerEvents="all" />
+      <polygon points={HEX_POINTS} transform={`scale(${size * 0.6})`} fill="transparent" pointerEvents="all" />
 
       {/* Main Base Hex */}
       <polygon 
         points={HEX_POINTS} 
-        transform={`scale(${size * 0.95})`} 
+        transform={`scale(${size * 0.6})`} 
         fill={fillGradient} 
-        stroke={isSelected ? '#ffffff' : strokeColor} 
-        strokeWidth={isSelected ? 3 : 1.5} 
+        stroke={strokeColor} 
+        strokeWidth={1.5} 
         pointerEvents="none" 
       />
+      {isSelected && (
+        <polygon 
+          points={HEX_POINTS} 
+          transform={`scale(${size * 0.6})`} 
+          fill="none" 
+          stroke="#00ff00" 
+          strokeWidth="3" 
+          strokeDasharray="4 4"
+          className="animate-spin-slow pointer-events-none drop-shadow-[0_0_8px_#00ff00]"
+        />
+      )}
 
       {/* VFX Overlays */}
-      {isHot && <polygon points={HEX_POINTS} transform={`scale(${size * 0.95})`} fill="rgba(100,255,50,0.2)" pointerEvents="none" className="animate-pulse" />}
-      {isBlackout && <polygon points={HEX_POINTS} transform={`scale(${size * 0.95})`} fill="rgba(0,0,0,0.8)" pointerEvents="none" />}
-      {isFire && <circle r={size * 0.6} fill="rgba(255,100,0,0.5)" pointerEvents="none" className="animate-pulse" />}
+      {isHot && <polygon points={HEX_POINTS} transform={`scale(${size * 0.6})`} fill="rgba(100,255,50,0.2)" pointerEvents="none" className="animate-pulse" />}
+      {isBlackout && <polygon points={HEX_POINTS} transform={`scale(${size * 0.6})`} fill="rgba(0,0,0,0.8)" pointerEvents="none" />}
+      {isFire && <circle r={size * 0.4} fill="rgba(255,100,0,0.5)" pointerEvents="none" className="animate-pulse" />}
 
-      {/* Icon */}
+      {/* Icon or Building Text */}
       <g pointerEvents="none">
-        {renderIcon()}
+        {isBuilding ? (
+          <text x="0" y="4" textAnchor="middle" fill="#0ff" fontSize="10" fontWeight="bold" className="animate-pulse">BUILD</text>
+        ) : renderIcon()}
       </g>
 
       {/* Targeting Highlight */}
       {isTargetable && (
-         <polygon points={HEX_POINTS} transform={`scale(${size * 0.95})`} fill="rgba(75, 255, 100, 0.15)" stroke="rgb(75, 255, 100)" strokeWidth="2" strokeDasharray="4 4" pointerEvents="none" />
+         <polygon points={HEX_POINTS} transform={`scale(${size * 0.6})`} fill="rgba(75, 255, 100, 0.15)" stroke="rgb(75, 255, 100)" strokeWidth="2" strokeDasharray="4 4" pointerEvents="none" />
       )}
 
       {/* HP Bar (Only if damaged) */}
       {hp < maxHp && (
-        <g transform={`translate(0, ${size * 0.8})`} pointerEvents="none">
-           <rect x={-size*0.5} y={0} width={size} height="2" fill="rgba(255,255,255,0.1)" />
-           <rect x={-size*0.5} y={0} width={size * Math.max(0, (hp/maxHp))} height="2" fill="white" />
+        <g transform={`translate(0, ${size * 0.55})`} pointerEvents="none">
+           <rect x={-size*0.4} y={0} width={size * 0.8} height="2" fill="rgba(255,255,255,0.1)" />
+           <rect x={-size*0.4} y={0} width={(size * 0.8) * Math.max(0, (hp/maxHp))} height="2" fill="white" />
         </g>
       )}
     </g>

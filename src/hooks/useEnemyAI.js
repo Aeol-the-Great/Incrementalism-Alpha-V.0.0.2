@@ -2,19 +2,25 @@ import { useEffect, useRef } from 'react';
 import { getNeighbors } from '../utils/hexUtils';
 import { NODE_OWNERS, NODE_STATES, COSTS, STRIKES } from '../utils/constants';
 
-export function useEnemyAI(nodes, startExpansion, launchStrike) {
-  const aiBitsRef = useRef(200);
+export function useEnemyAI(engine, difficulty) {
+  const { nodes, startExpansion, launchStrike } = engine;
+  const aiBitsRef = useRef(2000); // 10x mapped to new economy
   const nodesRef = useRef(nodes);
 
-  // Sync ref to avoid creating closures on setInterval
   useEffect(() => {
     nodesRef.current = nodes;
   }, [nodes]);
 
   useEffect(() => {
+    let speedMult = 1;
+    let cheatBps = 50;
+    if (difficulty === 'easy') { speedMult = 1.5; cheatBps = 20; }
+    if (difficulty === 'normal') { speedMult = 1; cheatBps = 75; }
+    if (difficulty === 'hard') { speedMult = 0.6; cheatBps = 150; }
+    if (difficulty === 'insane') { speedMult = 0.3; cheatBps = 300; }
+
     const interval = setInterval(() => {
-      // Passive AI Income (Sandboxed)
-      aiBitsRef.current += 15;
+      aiBitsRef.current += cheatBps;
       
       const currentNodes = nodesRef.current;
       const enemyNodes = [];
@@ -25,9 +31,7 @@ export function useEnemyAI(nodes, startExpansion, launchStrike) {
         const n = currentNodes[key];
         if (n.owner === NODE_OWNERS.ENEMY) {
           enemyNodes.push(n);
-          if (n.state === NODE_STATES.OFFENSIVE || n.state === NODE_STATES.CORE) {
-            enemyOffensive.push(n);
-          }
+          if (n.state === NODE_STATES.OFFENSIVE || n.state === NODE_STATES.CORE) enemyOffensive.push(n);
         } else if (n.owner === NODE_OWNERS.PLAYER) {
           playerNodes.push(n);
         }
@@ -35,21 +39,16 @@ export function useEnemyAI(nodes, startExpansion, launchStrike) {
 
       // Action 1: Expansion
       if (aiBitsRef.current >= COSTS.EXPAND && enemyNodes.length > 0) {
-        // Pick a random enemy node
         const source = enemyNodes[Math.floor(Math.random() * enemyNodes.length)];
         const nbs = getNeighbors(source.q, source.r);
-        
-        // Find adjacent empty or player nodes
         const validTargets = nbs.filter(nb => {
-          const nk = `${nb.q},${nb.r}`;
-          const targetNode = currentNodes[nk];
+          const targetNode = currentNodes[`${nb.q},${nb.r}`];
           return targetNode && targetNode.owner !== NODE_OWNERS.ENEMY;
         });
 
         if (validTargets.length > 0) {
           const target = validTargets[Math.floor(Math.random() * validTargets.length)];
-          const targetNode = currentNodes[`${target.q},${target.r}`];
-          startExpansion(source, targetNode, true); // true = isAI flag
+          startExpansion(source, currentNodes[`${target.q},${target.r}`], true);
           aiBitsRef.current -= COSTS.EXPAND;
         }
       }
@@ -63,8 +62,8 @@ export function useEnemyAI(nodes, startExpansion, launchStrike) {
             aiBitsRef.current -= STRIKES.STANDARD.cost;
         }
       }
-    }, 2000);
+    }, 2000 * speedMult);
 
     return () => clearInterval(interval);
-  }, [startExpansion, launchStrike]);
+  }, [difficulty, startExpansion, launchStrike]);
 }
