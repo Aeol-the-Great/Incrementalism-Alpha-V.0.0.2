@@ -32,6 +32,7 @@ export function useGameEngine() {
   const activeConstructionRef = useRef({});
   const ammoQueueRef = useRef([]);
   const strikesRef = useRef([]);
+  const explosionsRef = useRef([]);
 
   // Game Loop
   useEffect(() => {
@@ -140,6 +141,20 @@ export function useGameEngine() {
               nodesChanged = true;
               const strikeData = STRIKES[strike.type];
               
+              let accDelay = 0;
+              for (let ex = 0; ex < 3; ex++) {
+                 accDelay += 200 + Math.random() * 300;
+                 explosionsRef.current.push({
+                    id: Math.random().toString(),
+                    target: strike.target,
+                    delayStartsAt: time + accDelay,
+                    duration: 500,
+                    progress: 0,
+                    offsetX: (Math.random() - 0.5) * 25,
+                    offsetY: (Math.random() - 0.5) * 25
+                 });
+              }
+              
               let damage = strikeData.dmg;
               if (strikeData.effect === 'bunker_buster' && 
                   (targetNode.state === NODE_STATES.DEFENSIVE || targetNode.state === NODE_STATES.OFFENSIVE)) {
@@ -199,6 +214,17 @@ export function useGameEngine() {
               }
            }
            strikesRef.current.splice(i, 1);
+        }
+      }
+
+      // 2b. Process Explosions
+      for (let i = explosionsRef.current.length - 1; i >= 0; i--) {
+        const ex = explosionsRef.current[i];
+        if (time >= ex.delayStartsAt) {
+            ex.progress += dt / ex.duration;
+            if (ex.progress >= 1) {
+                explosionsRef.current.splice(i, 1);
+            }
         }
       }
 
@@ -442,6 +468,7 @@ export function useGameEngine() {
     activeConstructionRef,
     ammoQueueRef,
     strikesRef,
+    explosionsRef,
     startExpansion,
     convertNode,
     launchStrike,

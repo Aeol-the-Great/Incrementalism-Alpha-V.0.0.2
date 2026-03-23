@@ -3,7 +3,7 @@ import { hexToPixel } from '../utils/hexUtils';
 
 const HEX_POINTS = "0,-1 0.866,-0.5 0.866,0.5 0,1 -0.866,0.5 -0.866,-0.5";
 
-const StrikeLayer = ({ activeExpansions, strikes, size }) => {
+const StrikeLayer = ({ activeExpansions, strikes, explosions, size }) => {
   const [, setTick] = useState(0);
   const frameRef = useRef(0);
 
@@ -153,6 +153,26 @@ const StrikeLayer = ({ activeExpansions, strikes, size }) => {
               {MissleSVG}
             </g>
           );
+      })}
+
+      {/* Render Explosions */}
+      {(explosions || []).map(ex => {
+         if (ex.progress <= 0) return null;
+         const coords = ex.target.split(',');
+         const { x, y } = hexToPixel(parseInt(coords[0]), parseInt(coords[1]), size);
+         const cx = x + ex.offsetX;
+         const cy = y + ex.offsetY;
+         
+         const scale = 1 + ex.progress * 2;
+         const opacity = 1 - Math.pow(ex.progress, 2);
+         
+         return (
+            <g key={ex.id} transform={`translate(${cx}, ${cy}) scale(${scale})`} opacity={opacity}>
+               <circle cx="0" cy="0" r="12" fill="#ffaa00" />
+               <circle cx="0" cy="0" r="8" fill="#ffffff" />
+               <polygon points="0,-18 5,-5 18,0 5,5 0,18 -5,5 -18,0 -5,-5" fill="#ff4400" />
+            </g>
+         );
       })}
     </g>
   );

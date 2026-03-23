@@ -13,7 +13,7 @@ export default function App() {
   const [difficulty, setDifficulty] = useState('normal');
 
   const engine = useGameEngine();
-  const { nodes, bits, bps, inventory, activeExpansionsRef, activeConstructionRef, ammoQueueRef, strikesRef, startExpansion, convertNode, launchStrike, produceMissile } = engine;
+  const { nodes, bits, bps, inventory, activeExpansionsRef, activeConstructionRef, ammoQueueRef, strikesRef, explosionsRef, startExpansion, convertNode, launchStrike, produceMissile } = engine;
   
   // Attach Enemy AI
   useEnemyAI(engine, difficulty);
@@ -86,7 +86,13 @@ export default function App() {
 
       if (hasOffensive || originNode) {
          const handleStrikeKey = (type) => {
-            if (selectedNodeKeys.length === 0) setSelectedNodeKeys([`${originNode.q},${originNode.r}`]);
+            const hasPlayerOrigin = selectedNodeKeys.some(key => {
+               const n = nodes[key];
+               return n && n.owner === NODE_OWNERS.PLAYER && (n.state === NODE_STATES.OFFENSIVE || n.state === NODE_STATES.CORE);
+            });
+            if (!hasPlayerOrigin) {
+               setSelectedNodeKeys([`${originNode.q},${originNode.r}`]);
+            }
             setIsTargeting(prev => prev === type ? null : type);
          };
 
@@ -231,7 +237,7 @@ export default function App() {
     return (
       <div className="flex flex-col items-center justify-center w-screen h-screen bg-black text-white font-mono gap-6 z-[1000000] fixed top-0 left-0">
          <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(0,255,255,0.08)_0%,transparent_100%)] pointer-events-none" />
-         <h1 className="text-6xl font-black text-cyan-400 drop-shadow-[0_0_20px_cyan] tracking-widest text-center relative z-10">PROJECT HEX-VOID:<br />THE TITAN PROTOCOL</h1>
+         <h1 className="text-6xl font-black text-cyan-400 drop-shadow-[0_0_20px_cyan] tracking-widest text-center relative z-10">INCREMENTALISM :<br />WAR</h1>
          <p className="text-xl opacity-70 mb-10 max-w-2xl text-center relative z-10">Establish your base. Secure nodes. Weather the storm. Destroy the Titan Core using extreme geometric force.</p>
          <div className="flex gap-4 relative z-10">
            {['easy', 'normal', 'hard', 'insane'].map(diff => (
@@ -253,7 +259,7 @@ export default function App() {
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(0,255,255,0.03)_0%,transparent_100%)] pointer-events-none" />
       
       <div className="absolute top-6 left-10 flex flex-col pointer-events-none z-[1000] drop-shadow-lg">
-        <span className="text-cyan-500/50 text-[10px] uppercase mb-1 drop-shadow-[0_0_5px_cyan]">Project_Hex_Void // Titan_Protocol</span>
+        <span className="text-cyan-500/50 text-[10px] uppercase mb-1 drop-shadow-[0_0_5px_cyan]">Incrementalism // War</span>
         <div className="flex items-baseline gap-4">
           <span className="text-6xl font-black tracking-widest text-white">{Math.floor(bits).toLocaleString()}λ</span>
           <span className="text-cyan-400 font-bold text-xl">+{bps}/s</span>
@@ -280,6 +286,7 @@ export default function App() {
            <StrikeLayer 
              activeExpansions={activeExpansionsRef.current}
              strikes={strikesRef.current}
+             explosions={explosionsRef?.current}
              size={HEX_SIZE}
            />
         </g>
