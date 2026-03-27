@@ -13,7 +13,7 @@ export default function App() {
   const [difficulty, setDifficulty] = useState('normal');
 
   const engine = useGameEngine();
-  const { nodes, bits, bps, inventory, activeExpansionsRef, activeConstructionRef, ammoQueueRef, strikesRef, explosionsRef, startExpansion, convertNode, launchStrike, produceMissile } = engine;
+  const { nodes, bits, bps, inventory, upgrades, activeExpansionsRef, activeConstructionRef, ammoQueueRef, strikesRef, explosionsRef, purchaseUpgrade, startExpansion, convertNode, launchStrike, produceMissile } = engine;
   
   // Attach Enemy AI
   useEnemyAI(engine, difficulty);
@@ -309,6 +309,8 @@ export default function App() {
         bits={bits}
         nodes={nodes}
         inventory={inventory}
+        upgrades={upgrades}
+        purchaseUpgrade={purchaseUpgrade}
         produceMissile={produceMissile}
         ammoQueueRef={ammoQueueRef}
         activeConstructionRef={activeConstructionRef}

@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { NODE_STATES, NODE_OWNERS, COSTS, STRIKES, NODE_DESCRIPTIONS } from '../utils/constants';
+import { NODE_STATES, NODE_OWNERS, COSTS, STRIKES, NODE_DESCRIPTIONS, UPGRADES } from '../utils/constants';
 
 const CommandCard = ({ 
   selectedNodeKeys, 
   bits, 
   nodes, 
-  inventory, 
-  produceMissile, 
+  inventory,
+  upgrades,
+  purchaseUpgrade,
+  produceMissile,
   ammoQueueRef, 
   activeConstructionRef, 
   onConvert, 
@@ -31,7 +33,34 @@ const CommandCard = ({
   const isMulti = selectedNodeKeys.length > 1;
 
   if (selectedNodeKeys.length === 0 || !isPlayerOwned) {
-    return <div className="fixed bottom-0 left-0 w-full h-[25vh] bg-[#050505] border-t-2 border-[#1a1a1a] z-[99999] pointer-events-auto shadow-[0_-20px_50px_rgba(0,0,0,0.8)]"></div>;
+    return (
+      <div className="fixed bottom-0 left-0 w-full h-[25vh] bg-[#050505] border-t-2 border-cyan-900/80 z-[99999] pointer-events-auto shadow-[0_-10px_40px_rgba(0,255,255,0.05)] flex overflow-hidden">
+         <div className="flex flex-col w-full h-full p-4 font-mono overflow-y-auto">
+            <h3 className="text-cyan-400 font-bold text-xs tracking-widest border-b border-cyan-900/50 pb-1 mb-3">GLOBAL ASSETS & UPGRADES</h3>
+            <div className="grid grid-cols-6 gap-3">
+               {Object.entries(UPGRADES).map(([key, data]) => {
+                  const level = upgrades[key] || 0;
+                  const cost = Math.floor(data.baseCost * Math.pow(data.scale, level));
+                  return (
+                     <button
+                        key={key}
+                        disabled={bits < cost}
+                        onClick={() => purchaseUpgrade(key)}
+                        className="flex flex-col items-center justify-center p-2 bg-purple-950/20 border border-purple-500/30 hover:bg-purple-900/60 hover:border-purple-400 text-purple-400 disabled:opacity-20 cursor-pointer h-20 transition-all group relative"
+                     >
+                        <span className="text-[10px] font-bold text-center leading-tight group-hover:text-white uppercase mb-1">{data.name}</span>
+                        <span className="text-[8px] opacity-70 mb-1 text-center">LVL {level}</span>
+                        <span className="text-[9px] font-black group-hover:text-white">[{cost.toLocaleString()}λ]</span>
+                        <div className="absolute hidden group-hover:block bottom-full mb-2 w-48 p-2 bg-black border border-purple-500 text-purple-300 text-[10px] z-50 pointer-events-none">
+                           {data.desc}
+                        </div>
+                     </button>
+                  );
+               })}
+            </div>
+         </div>
+      </div>
+    );
   }
 
   const playerOffensiveCount = Object.values(nodes).filter(n => n.owner === NODE_OWNERS.PLAYER && n.state === NODE_STATES.OFFENSIVE).length;

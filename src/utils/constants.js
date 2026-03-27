@@ -64,6 +64,15 @@ export const STRIKES = {
   FOR_AMERICA: { name: 'FOR AMERICA!!!!', cost: 10000, dmg: 0, effect: 'freedom', radius: 3, prodTime: 0, desc: 'FOR THE KING OF SPACE DUNDEE!!!! OBLITERATION.' }
 };
 
+export const UPGRADES = {
+  BPS: { name: 'Optimized Algorithms', desc: '+10% Bits generation per level.', baseCost: 1000, scale: 1.5 },
+  HP: { name: 'Structural Integrity', desc: '+15% Max HP to all player nodes.', baseCost: 1500, scale: 1.6 },
+  EXPANSION: { name: 'Subspace Assimilation', desc: '+10% faster expansion rate.', baseCost: 2000, scale: 1.7 },
+  ASSEMBLY: { name: 'Automated Forges', desc: '+15% faster ordnance production.', baseCost: 2500, scale: 1.8 },
+  DAMAGE: { name: 'High-Yield Warheads', desc: '+15% damage for all missile types.', baseCost: 3000, scale: 2.0 },
+  REGEN: { name: 'Nano-Reconstruction', desc: '+1 HP/sec regeneration rate.', baseCost: 1200, scale: 1.5 }
+};
+
 export const GAME_CONSTANTS = {
   BPS_PER_PROD: 50,
   BASE_EXPANSION_MS: 10000,

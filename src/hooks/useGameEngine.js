@@ -12,7 +12,8 @@ import {
   MAX_HP, 
   GAME_CONSTANTS,
   STRIKES,
-  CONSTRUCTION_TIMES_MS
+  CONSTRUCTION_TIMES_MS,
+  UPGRADES
 } from '../utils/constants';
 
 export function useGameEngine() {
@@ -23,9 +24,14 @@ export function useGameEngine() {
   const [inventory, setInventory] = useState({
     STANDARD: 0, INCENDIARY: 0, COBALT: 0, EMP: 0, ICBM: 0, HARPOON: 0, FOR_AMERICA: 0
   });
+  const [upgrades, setUpgrades] = useState({
+    BPS: 0, HP: 0, EXPANSION: 0, ASSEMBLY: 0, DAMAGE: 0, REGEN: 0
+  });
 
   // Sync ref to state
   useEffect(() => { nodesRef.current = nodes; }, [nodes]);
+  const upgradesRef = useRef(upgrades);
+  useEffect(() => { upgradesRef.current = upgrades; }, [upgrades]);
 
   // High-frequency volatile state kept in refs to avoid mass re-rendering
   const activeExpansionsRef = useRef({}); 
@@ -46,13 +52,12 @@ export function useGameEngine() {
 
       let nodesChanged = false;
       const nextNodes = { ...nodesRef.current };
-      let newInventoryAdds = {};
 
       // 1. Process Active Expansions
       for (const targetKey in activeExpansionsRef.current) {
         const exp = activeExpansionsRef.current[targetKey];
         // Calculate dynamic speed based on number of sources
-        const speedMult = exp.speedMult * (1.0 + (0.10 * (exp.sources.length - 1)));
+        const speedMult = exp.speedMult * (1.0 + (0.10 * (exp.sources.length - 1))) * (exp.owner === NODE_OWNERS.PLAYER ? 1 + upgradesRef.current.EXPANSION * 0.10 : 1);
         
         // Check for Hot zones (Cobalt-60)
         const targetNode = nextNodes[targetKey];
@@ -66,25 +71,16 @@ export function useGameEngine() {
           nodesChanged = true;
           const owner = nextNodes[exp.sources[0]].owner;
           const oldState = nextNodes[targetKey].state;
+          const hpMult = owner === NODE_OWNERS.PLAYER ? 1 + upgradesRef.current.HP * 0.15 : 1;
+          const newMax = Math.floor(MAX_HP[NODE_STATES.BORDER] * hpMult);
           
-          if (oldState === NODE_STATES.CORE) {
-             // Game Over logic could go here
-             nextNodes[targetKey] = {
-               ...nextNodes[targetKey],
-               owner,
-               state: NODE_STATES.BORDER,
-               hp: MAX_HP[NODE_STATES.BORDER],
-               maxHp: MAX_HP[NODE_STATES.BORDER]
-             };
-          } else {
-             nextNodes[targetKey] = {
-               ...nextNodes[targetKey],
-               owner,
-               state: NODE_STATES.BORDER,
-               hp: MAX_HP[NODE_STATES.BORDER],
-               maxHp: MAX_HP[NODE_STATES.BORDER]
-             };
-          }
+          nextNodes[targetKey] = {
+            ...nextNodes[targetKey],
+            owner,
+            state: NODE_STATES.BORDER,
+            hp: newMax,
+            maxHp: newMax
+          };
           
           delete activeExpansionsRef.current[targetKey];
         }
@@ -95,11 +91,14 @@ export function useGameEngine() {
          const build = activeConstructionRef.current[key];
          build.progress += dt / build.totalTime;
          if (build.progress >= 1) {
+             const hpMult = nextNodes[key].owner === NODE_OWNERS.PLAYER ? 1 + upgradesRef.current.HP * 0.15 : 1;
+             const baseMax = MAX_HP[build.type] || nextNodes[key].maxHp;
+             const newMax = Math.floor(baseMax * hpMult);
              nextNodes[key] = {
                 ...nextNodes[key],
                 state: build.type,
-                hp: MAX_HP[build.type] || nextNodes[key].hp,
-                maxHp: MAX_HP[build.type] || nextNodes[key].maxHp
+                hp: newMax,
+                maxHp: newMax
              };
              delete activeConstructionRef.current[key];
              nodesChanged = true;
@@ -119,7 +118,8 @@ export function useGameEngine() {
       for (let i = 0; i < ammoQueueRef.current.length; i++) {
          if (activeBuilders >= offensiveCount) break; // Throttle to factory count
          const item = ammoQueueRef.current[i];
-         item.progress += dt / item.totalTime;
+         const assemblyMult = 1 + upgradesRef.current.ASSEMBLY * 0.15;
+         item.progress += (dt * assemblyMult) / item.totalTime;
          if (item.progress >= 1) {
             const t = item.type;
             setInventory(prev => ({ ...prev, [t]: (prev[t] || 0) + 1 }));
@@ -155,38 +155,43 @@ export function useGameEngine() {
                  });
               }
               
-              let damage = strikeData.dmg;
+              let damage = strikeData.dmg * (strike.owner === NODE_OWNERS.PLAYER ? 1 + upgradesRef.current.DAMAGE * 0.15 : 1);
               if (strikeData.effect === 'bunker_buster' && 
                   (targetNode.state === NODE_STATES.DEFENSIVE || targetNode.state === NODE_STATES.OFFENSIVE)) {
                  damage *= strikeData.multiplier;
               }
 
               if (strikeData.effect === 'instant_claim' && targetNode.state === NODE_STATES.EMPTY) {
+                 const hpMult = strike.owner === NODE_OWNERS.PLAYER ? 1 + upgradesRef.current.HP * 0.15 : 1;
+                 const newMax = Math.floor(MAX_HP[NODE_STATES.BORDER] * hpMult);
                  nextNodes[strike.target] = {
                    ...targetNode,
                    owner: strike.owner,
                    state: NODE_STATES.BORDER,
-                   hp: MAX_HP[NODE_STATES.BORDER],
-                   maxHp: MAX_HP[NODE_STATES.BORDER]
+                   hp: newMax,
+                   maxHp: newMax
                  };
               } else if (damage > 0) {
-                 targetNode.hp -= damage;
-                 targetNode.lastDamagedAt = time;
-
-                 if (targetNode.hp <= 0) {
-                   targetNode.owner = NODE_OWNERS.NEUTRAL;
-                   targetNode.state = NODE_STATES.EMPTY;
-                   targetNode.hp = MAX_HP[NODE_STATES.EMPTY];
-                   targetNode.maxHp = MAX_HP[NODE_STATES.EMPTY];
-                   // Cancel expansions if it was a source
-                   for (const key in activeExpansionsRef.current) {
-                      const exp = activeExpansionsRef.current[key];
-                      exp.sources = exp.sources.filter(s => s !== strike.target);
-                      if (exp.sources.length === 0) {
-                        delete activeExpansionsRef.current[key];
-                      }
-                   }
+                 let updatedNode = { ...targetNode, hp: targetNode.hp - damage, lastDamagedAt: time };
+                 
+                 if (updatedNode.hp <= 0) {
+                    updatedNode = {
+                       ...updatedNode,
+                       owner: NODE_OWNERS.NEUTRAL,
+                       state: NODE_STATES.EMPTY,
+                       hp: MAX_HP[NODE_STATES.EMPTY],
+                       maxHp: MAX_HP[NODE_STATES.EMPTY]
+                    };
+                    // Cancel expansions if it was a source
+                    for (const key in activeExpansionsRef.current) {
+                       const exp = activeExpansionsRef.current[key];
+                       exp.sources = exp.sources.filter(s => s !== strike.target);
+                       if (exp.sources.length === 0) {
+                         delete activeExpansionsRef.current[key];
+                       }
+                    }
                  }
+                 nextNodes[strike.target] = updatedNode;
               }
 
               // Apply status effects
@@ -198,18 +203,24 @@ export function useGameEngine() {
                     affected.forEach(pos => {
                        const k = `${pos.q},${pos.r}`;
                        if (nextNodes[k]) {
-                          nextNodes[k].statusEffects.push({
-                            type: strikeData.effect,
-                            endsAt: time + strikeData.duration
-                          });
+                          nextNodes[k] = {
+                             ...nextNodes[k],
+                             statusEffects: [
+                               ...nextNodes[k].statusEffects,
+                               { type: strikeData.effect, endsAt: time + strikeData.duration }
+                             ]
+                          };
                        }
                     });
                  } else {
-                    targetNode.statusEffects.push({
-                      type: strikeData.effect,
-                      endsAt: time + strikeData.duration,
-                      tickDps: strikeData.tickDps || 0
-                    });
+                    const nodeToUpdate = nextNodes[strike.target] || targetNode;
+                    nextNodes[strike.target] = {
+                       ...nodeToUpdate,
+                       statusEffects: [
+                          ...nodeToUpdate.statusEffects,
+                          { type: strikeData.effect, endsAt: time + strikeData.duration, tickDps: strikeData.tickDps || 0 }
+                       ]
+                    };
                  }
               }
            }
@@ -233,27 +244,33 @@ export function useGameEngine() {
          let currentBps = 0;
          let playerHasProd = false;
 
-         // Need to loop over all once per sec
          for (const key in nextNodes) {
-           const n = nextNodes[key];
+           let n = nextNodes[key];
+           let nChanged = false;
            
            // Clean old status effects
            if (n.statusEffects.length > 0) {
              const preLen = n.statusEffects.length;
-             n.statusEffects = n.statusEffects.filter(e => e.endsAt > time);
-             if (preLen !== n.statusEffects.length) nodesChanged = true;
+             const nextStatus = n.statusEffects.filter(e => e.endsAt > time);
+             
+             if (preLen !== nextStatus.length) {
+               n = { ...n, statusEffects: nextStatus };
+               nChanged = true;
+             }
              
              // Apply fire DPS
              const fireEff = n.statusEffects.find(e => e.type === 'fire');
              if (fireEff) {
-               n.hp -= fireEff.tickDps;
-               n.lastDamagedAt = time;
-               nodesChanged = true;
+               n = { ...n, hp: n.hp - fireEff.tickDps, lastDamagedAt: time };
+               nChanged = true;
                if (n.hp <= 0) {
-                 n.owner = NODE_OWNERS.NEUTRAL;
-                 n.state = NODE_STATES.EMPTY;
-                 n.hp = MAX_HP[NODE_STATES.EMPTY];
-                 n.maxHp = MAX_HP[NODE_STATES.EMPTY];
+                 n = {
+                   ...n,
+                   owner: NODE_OWNERS.NEUTRAL,
+                   state: NODE_STATES.EMPTY,
+                   hp: MAX_HP[NODE_STATES.EMPTY],
+                   maxHp: MAX_HP[NODE_STATES.EMPTY]
+                 };
                }
              }
            }
@@ -261,28 +278,30 @@ export function useGameEngine() {
            const isBlackedOut = n.statusEffects.some(e => e.type === 'blackout');
 
            if (n.owner === NODE_OWNERS.PLAYER && n.state === NODE_STATES.PRODUCTIVE && !isBlackedOut) {
-             currentBps += GAME_CONSTANTS.BPS_PER_PROD;
+             currentBps += GAME_CONSTANTS.BPS_PER_PROD * (1 + upgradesRef.current.BPS * 0.1);
              playerHasProd = true;
            }
 
            // Regen
            if (n.owner !== NODE_OWNERS.NEUTRAL && n.hp < n.maxHp && (time - n.lastDamagedAt) > GAME_CONSTANTS.REGEN_DELAY_MS) {
               if (n.owner === NODE_OWNERS.ENEMY || playerHasProd) {
-                 n.hp = Math.min(n.maxHp, n.hp + GAME_CONSTANTS.REGEN_RATE_PER_SEC);
-                 nodesChanged = true;
+                 const regenBonus = n.owner === NODE_OWNERS.PLAYER ? upgradesRef.current.REGEN : 0;
+                 n = {
+                   ...n,
+                   hp: Math.min(n.maxHp, n.hp + GAME_CONSTANTS.REGEN_RATE_PER_SEC + regenBonus)
+                 };
+                 nChanged = true;
               }
+           }
+
+           if (nChanged) {
+             nextNodes[key] = n;
+             nodesChanged = true;
            }
          }
 
          setBps(currentBps);
          setBits(b => b + currentBps);
-         if (Object.keys(newInventoryAdds).length > 0) {
-           setInventory(prev => {
-             const next = { ...prev };
-             for (const k in newInventoryAdds) next[k] += newInventoryAdds[k];
-             return next;
-           });
-         }
          tickAccumulator -= 1000;
       }
 
@@ -295,7 +314,7 @@ export function useGameEngine() {
 
     const requestId = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(requestId);
-  }, []); // Run once!
+  }, []);
 
   // Actions
   const startExpansion = useCallback((sourceNode, targetNode, isAI = false) => {
@@ -459,16 +478,49 @@ export function useGameEngine() {
      });
   }, []);
 
+  const purchaseUpgrade = useCallback((type) => {
+     const upgData = UPGRADES[type];
+     if (!upgData) return;
+     setBits(b => {
+        const level = upgradesRef.current[type];
+        const cost = Math.floor(upgData.baseCost * Math.pow(upgData.scale, level));
+        if (b >= cost) {
+           setUpgrades(prev => {
+              const next = { ...prev, [type]: prev[type] + 1 };
+              if (type === 'HP') {
+                 setNodes(nMap => {
+                    const nextMap = { ...nMap };
+                    for (const k in nextMap) {
+                       if (nextMap[k].owner === NODE_OWNERS.PLAYER) {
+                          const baseMax = MAX_HP[nextMap[k].state] || 50;
+                          const newMax = Math.floor(baseMax * (1 + next.HP * 0.15));
+                          const diff = newMax - nextMap[k].maxHp;
+                          nextMap[k] = { ...nextMap[k], maxHp: newMax, hp: nextMap[k].hp + diff };
+                       }
+                    }
+                    return nextMap;
+                 });
+              }
+              return next;
+           });
+           return b - cost;
+        }
+        return b;
+     });
+  }, []);
+
   return {
     nodes,
     bits,
     bps,
     inventory,
+    upgrades,
     activeExpansionsRef,
     activeConstructionRef,
     ammoQueueRef,
     strikesRef,
     explosionsRef,
+    purchaseUpgrade,
     startExpansion,
     convertNode,
     launchStrike,
