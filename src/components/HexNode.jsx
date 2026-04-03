@@ -4,7 +4,7 @@ import { hexToPixel } from '../utils/hexUtils';
 
 const HEX_POINTS = "0,-1 0.866,-0.5 0.866,0.5 0,1 -0.866,0.5 -0.866,-0.5";
 
-const HexNode = ({ node, size, isSelected, isTargetable, onClick, onMouseEnter, onMouseLeave }) => {
+const HexNode = ({ node, size, isSelected, isTargetable, isShielded, onClick, onDoubleClick, onMouseEnter, onMouseLeave }) => {
   const { q, r, state, owner, hp, maxHp, statusEffects } = node;
   const { x, y } = hexToPixel(q, r, size);
 
@@ -78,6 +78,11 @@ const HexNode = ({ node, size, isSelected, isTargetable, onClick, onMouseEnter, 
           strokeDasharray="4 4"
           className="animate-spin-slow pointer-events-none drop-shadow-[0_0_8px_#00ff00]"
         />
+      )}
+
+      {/* Defensive Shield */}
+      {isShielded && (
+         <polygon points={HEX_POINTS} transform={`scale(${size * 0.75})`} fill="rgba(0, 255, 255, 0.05)" stroke="rgba(0, 255, 255, 0.5)" strokeWidth="1" strokeDasharray="2 2" pointerEvents="none" className="animate-pulse" />
       )}
 
       {/* VFX Overlays */}

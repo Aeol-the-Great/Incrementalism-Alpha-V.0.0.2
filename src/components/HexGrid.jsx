@@ -1,7 +1,8 @@
 import React from 'react';
 import HexNode from './HexNode';
+import { getNeighbors } from '../utils/hexUtils';
 
-const HexGrid = ({ nodes, size, onNodeClick, onNodeEnter, onNodeLeave, selectedNodeKeys, targetableKeys }) => {
+const HexGrid = ({ nodes, size, onNodeClick, onNodeDoubleClick, onNodeEnter, onNodeLeave, selectedNodeKeys, targetableKeys }) => {
   return (
     <g className="grid-layer">
       <defs>
@@ -21,14 +22,23 @@ const HexGrid = ({ nodes, size, onNodeClick, onNodeEnter, onNodeLeave, selectedN
 
       {Object.values(nodes).map(node => {
         const key = `${node.q},${node.r}`;
+        
+        const nbs = getNeighbors(node.q, node.r);
+        const isShielded = node.owner === 'player' && nbs.some(nb => {
+           const nbNode = nodes[`${nb.q},${nb.r}`];
+           return nbNode && nbNode.owner === 'player' && nbNode.state === 'Defensive';
+        });
+
         return (
           <HexNode 
             key={key} 
             node={node} 
             size={size} 
             isSelected={selectedNodeKeys.includes(key)}
+            isShielded={isShielded}
             isTargetable={targetableKeys.includes(key)}
             onClick={onNodeClick}
+            onDoubleClick={onNodeDoubleClick}
             onMouseEnter={onNodeEnter}
             onMouseLeave={onNodeLeave}
           />

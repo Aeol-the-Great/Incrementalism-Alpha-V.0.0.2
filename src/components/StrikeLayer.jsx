@@ -23,6 +23,7 @@ const StrikeLayer = ({ activeExpansions, strikes, explosions, size }) => {
 
   const expansions = Object.values(activeExpansions || {});
   const safeStrikes = strikes || [];
+  const safeExplosions = explosions || [];
 
   return (
     <g className="strike-layer" pointerEvents="none">
@@ -173,6 +174,42 @@ const StrikeLayer = ({ activeExpansions, strikes, explosions, size }) => {
                <polygon points="0,-18 5,-5 18,0 5,5 0,18 -5,5 -18,0 -5,-5" fill="#ff4400" />
             </g>
          );
+      })}
+
+      {/* Render Explosions */}
+      {safeExplosions.map(ex => {
+          if (ex.progress === 0) return null; // Still in delay
+
+          const coords = ex.target.split(',');
+          const { x, y } = hexToPixel(parseInt(coords[0]), parseInt(coords[1]), size);
+          const currentX = x + ex.offsetX;
+          const currentY = y + ex.offsetY;
+          
+          let ExplosionSVG = null;
+          
+          if (ex.type === 'COBALT') {
+             ExplosionSVG = <circle cx="0" cy="0" r={size * 1.5 * ex.progress} fill="rgba(0, 200, 255, 0.4)" stroke="#00ffff" strokeWidth={5 * (1 - ex.progress)} />;
+          } else if (ex.type === 'INCENDIARY') {
+             ExplosionSVG = (
+                 <g>
+                    <circle cx="0" cy="0" r={size * ex.progress} fill="rgba(255, 50, 0, 0.6)" />
+                    <circle cx={Math.random()*10 - 5} cy={Math.random()*10 - 5} r={size * 0.5 * ex.progress} fill="rgba(255, 150, 0, 0.8)" />
+                 </g>
+             );
+          } else if (ex.type === 'EMP') {
+             ExplosionSVG = <circle cx="0" cy="0" r={size * 1.2 * ex.progress} fill="none" stroke="#aa00ff" strokeWidth={10 * (1 - ex.progress)} strokeDasharray="10 10" />;
+          } else if (ex.type === 'ICBM') {
+             ExplosionSVG = <circle cx="0" cy="0" r={size * 2 * ex.progress} fill="rgba(255, 0, 255, 0.3)" stroke="#ff00ff" strokeWidth={8 * (1 - ex.progress)} />;
+          } else {
+             // HARPOON & STANDARD & FOR_AMERICA
+             ExplosionSVG = <circle cx="0" cy="0" r={size * ex.progress} fill="rgba(255, 255, 255, 0.5)" stroke="#ffffff" strokeWidth={3 * (1 - ex.progress)} />;
+          }
+
+          return (
+            <g key={ex.id} transform={`translate(${currentX}, ${currentY})`}>
+              {ExplosionSVG}
+            </g>
+          );
       })}
     </g>
   );

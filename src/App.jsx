@@ -102,7 +102,43 @@ export default function App() {
          if (e.key === '4') handleStrikeKey('EMP');
          if (e.key === '5') handleStrikeKey('ICBM');
          if (e.key === '6') handleStrikeKey('HARPOON');
-         if (e.key === '0') handleStrikeKey('FOR_AMERICA');
+         if (e.key === '0') {
+            setBits(b => {
+               if (b >= 10000) {
+                  const currentNodes = nodesRef.current;
+                  const enemyKeys = Object.keys(currentNodes).filter(k => currentNodes[k].owner === NODE_OWNERS.ENEMY);
+                  const pOffKeys = Object.keys(currentNodes).filter(k => currentNodes[k].owner === NODE_OWNERS.PLAYER && currentNodes[k].state === NODE_STATES.OFFENSIVE);
+                  if (pOffKeys.length > 0 && enemyKeys.length > 0) {
+                     enemyKeys.forEach(eKey => {
+                        const [eq, er] = eKey.split(',').map(Number);
+                        for (let i = 0; i < 5; i++) {
+                           const rSrc = pOffKeys[Math.floor(Math.random() * pOffKeys.length)];
+                           const [sq, sr] = rSrc.split(',').map(Number);
+                           launchStrike('STANDARD', sq, sr, eq, er, false, true);
+                        }
+                     });
+                  }
+                  return b - 10000;
+               }
+               return b;
+            });
+         }
+         if (e.key === '9') {
+            const currentNodes = nodesRef.current;
+            const enemyKeys = Object.keys(currentNodes).filter(k => currentNodes[k].owner === NODE_OWNERS.ENEMY);
+            const pOffKeys = Object.keys(currentNodes).filter(k => currentNodes[k].owner === NODE_OWNERS.PLAYER && currentNodes[k].state === NODE_STATES.OFFENSIVE);
+            if (pOffKeys.length > 0 && enemyKeys.length > 0) {
+               Object.entries(inventory).forEach(([type, count]) => {
+                  for (let i = 0; i < count; i++) {
+                     const rSrc = pOffKeys[Math.floor(Math.random() * pOffKeys.length)];
+                     const rTgt = enemyKeys[Math.floor(Math.random() * enemyKeys.length)];
+                     const [sq, sr] = rSrc.split(',').map(Number);
+                     const [eq, er] = rTgt.split(',').map(Number);
+                     launchStrike(type, sq, sr, eq, er);
+                  }
+               });
+            }
+         }
       }
     };
     window.addEventListener('keydown', handleKeyDown);

@@ -147,11 +147,12 @@ export function useGameEngine() {
                  explosionsRef.current.push({
                     id: Math.random().toString(),
                     target: strike.target,
+                    type: strike.type,
                     delayStartsAt: time + accDelay,
-                    duration: 500,
+                    duration: 500 + Math.random() * 500,
                     progress: 0,
-                    offsetX: (Math.random() - 0.5) * 25,
-                    offsetY: (Math.random() - 0.5) * 25
+                    offsetX: (Math.random() - 0.5) * 40,
+                    offsetY: (Math.random() - 0.5) * 40
                  });
               }
               
@@ -159,6 +160,19 @@ export function useGameEngine() {
               if (strikeData.effect === 'bunker_buster' && 
                   (targetNode.state === NODE_STATES.DEFENSIVE || targetNode.state === NODE_STATES.OFFENSIVE)) {
                  damage *= strikeData.multiplier;
+              }
+
+              // Evaluate Defensive Shield Plating
+              const tq = parseInt(strike.target.split(',')[0]);
+              const tr = parseInt(strike.target.split(',')[1]);
+              const targetNeighbors = getNeighbors(tq, tr);
+              const hasDefensiveShield = targetNeighbors.some(nb => {
+                 const nbNode = nextNodes[`${nb.q},${nb.r}`];
+                 return nbNode && nbNode.owner === targetNode.owner && nbNode.state === NODE_STATES.DEFENSIVE;
+              });
+
+              if (hasDefensiveShield) {
+                 damage *= 0.5; // Cut damage exactly in half
               }
 
               if (strikeData.effect === 'instant_claim' && targetNode.state === NODE_STATES.EMPTY) {
